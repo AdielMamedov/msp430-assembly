@@ -1,9 +1,15 @@
-# msp430-assembly
+#  MSP430 Assembly Mega Project: FSM, Timers, ADC, & Signal Analysis
+
+This project develops a complex embedded system on the **MSP430G2553**, written in Assembly. The system is built incrementally, where each of the three major assignments **depends on the preceding one**, forming a robust knowledge base.
+
+**Features Summary:**
+1. **FSM Core:** Interrupt-driven state management.
+2. **Timers & Frequency:** Countdown Timer (Timer\_A0) and Frequency Counter (Timer\_A1 Capture).
+3. **ADC & Signal Analysis:** Continuous sampling (ADC10/DTC), $V_{avg}$ and Offset calculation, and signal classification.
 
 
 
-
-#  MSP430 Assembly Project - Assignment 4: FSM, Interrupts, and LPM
+#  MSP430 Assembly Project - Assignment 1: FSM, Interrupts, and LPM
 
 This project implements a **Finite State Machine (FSM)** on the **Texas Instruments MSP430G2553** microcontroller, written entirely in **Assembly** language (.s43). State transitions are controlled by external interrupts from push buttons, and the system utilizes a Low Power Mode (LPM) for energy conservation.
 
@@ -63,7 +69,7 @@ The FSM is implemented in the main loop within `main.s43` and is controlled by t
 
 ---
 
-#  MSP430 Assembly Project - Assignment 5: Timers, LCD, and Frequency Counter
+#  MSP430 Assembly Project - Assignment 2: Timers, LCD, and Frequency Counter
 
 This project is the next iteration of the Finite State Machine (FSM) architecture on the **Texas Instruments MSP430G2553** microcontroller, written in **Assembly** language (.s43). This phase introduces peripherals essential for real-time applications, specifically **Timers** and **LCD Display**.
 
@@ -117,6 +123,76 @@ The FSM is controlled by the global **`state`** variable, with transitions manag
 | **`Preparation report LAB5.pdf`** | Official assignment document detailing the **Frequency Capture** requirements. |
 | **`Tutorial 5.1 - Basic Timer.pdf`** | Reference material on Basic Timer concepts. |
 | **`Tutorial 6 - Advanced Timers.pdf`** | Reference material on Advanced Timers (Timer\_A/B) including **Capture/Compare** modes. |
+
+---
+
+#  MSP430 Assembly Project - Assignment 3: ADC, Voltage Measurement, and Signal Analysis
+
+This phase of the project introduces the crucial capability of interfacing with the analog world using the **Analog-to-Digital Converter (ADC)**. Written entirely in **Assembly** language (.s43), this assignment focuses on continuous sampling, voltage measurement, and classification of the input signal shape.
+
+---
+
+##  Project Objectives
+
+The primary goals of this assignment are:
+
+* **ADC Integration:** Configure and utilize the **ADC10** module for continuous sampling of an external analog voltage.
+* **Data Transfer (DTC):** Use the Data Transfer Controller (DTC) for automatic, CPU-independent storage of multiple ADC samples into RAM.
+* **Average Voltage (Vavg):** Implement complex **Fixed-Point Arithmetic** routines (e.g., UQ12.20) to calculate the signal's **Average Voltage (Vavg)** and display it on the LCD.
+* **Signal Offset/DC Bias:** Implement a routine to calculate the signal's **DC Offset** based on maximum and minimum sampled values.
+* **Signal Classification:** Analyze the sampled data to classify the signal shape (e.g., PWM, Sine, Triangle) and display the result.
+
+---
+
+##  Hardware & I/O Configuration
+
+| Component | Main Connections | Configuration / Purpose |
+| :--- | :--- | :--- |
+| **Microcontroller** | **MSP430G2553** | Core processing unit. |
+| **ADC Input** | **P1.3 (A3 Channel)** | Analog input pin for connecting the external signal source. Configured as **INCH\_3** for the ADC10 module. |
+| **16x2 LCD Screen** | **Port 1 / Port 2** | Used to display calculated values (`Vavg`, `Voffset`) and the classified signal shape. |
+| **Push-Buttons (PBs)** | **Port 1** | Triggering interrupts for FSM state transitions. |
+
+---
+
+##  ADC10 Configuration Highlights
+
+The `ADCconfig` routine in `bsp.s43` implements the following key configurations:
+
+| Register Field | Value/Configuration | Description |
+| :--- | :--- | :--- |
+| **`ADC10CTL0`** | `MSC`, `ADC10ON`, `ADC10IE`, `ADC10SHT_3` | Multiple Sample Conversion, ADC ON, Interrupt Enable, 64 ADC clocks per sample. |
+| **`ADC10CTL1`** | `CONSEQ_2`, `INCH_3`, `ADC10SSEL_3` | **Repeat Single Channel Mode** (`CONSEQ_2`) for continuous operation, **A3 Channel** selected, using **SMCLK** as the clock source. |
+| **`ADC10DTC1`** | `100` or `255` (as suggested by files) | Data Transfer Controller configured to transfer a block of samples (`100` or `255` samples) automatically to the array pointed to by `ADC10SA` (`sample`). |
+
+---
+
+##  FSM States and Functionalities
+
+The FSM is controlled by the global **`state`** variable (`state0`, `state1`, `state2`, `state3` in `main.s43`). The states are dedicated to the analysis and presentation tasks:
+
+| State | Primary Functionality | Implementation Details |
+| :---: | :--- | :--- |
+| **State 0** | **Idle / LPM** | Clears the screen and enters Low Power Mode (LPM0), awaiting a button interrupt. |
+| **State 1** | **Calculate Average Voltage ($\mathbf{V_{avg}}$)** | Initiates ADC sampling. Calculates $V_{avg}$ using the complex fixed-point formula. Displays the result with `STR_AVG` and `STR_VOLT` labels. |
+| **State 2** | **Signal Shape Classification** | Analyzes the statistical characteristics (e.g., standard deviation, Min/Max) of the sampled data array (`sample`) to classify the input signal as **PWM**, **SINE**, or **TRIANGLE**. Displays the corresponding `STR_SHAPE`. |
+| **State 3** | **Calculate Offset/DC Bias** | Scans the sampled data array to find the maximum ($V_{max}$) and minimum ($V_{min}$) ADC values. Calculates the offset as $(\mathbf{V_{max}} + \mathbf{V_{min}}) / 2$ and displays the converted voltage value on the LCD. |
+
+---
+
+##  Project File Structure
+
+| File | Description |
+| :--- | :--- |
+| **`main.s43`** | **FSM Core & Data.** Defines the FSM loop, global variables, sample arrays (`sample`, `sample_result`), and string constants (`STR_SHAPE`, `STR_AVG`, etc.). |
+| **`api.s43`** | **State Logic & LCD.** Contains the implementation of the main state functions (`STATE1`, `STATE2`, `STATE3`) and LCD output routines (`print_str`, `print_ch`). |
+| **`hal.s43`** | **HAL/Drivers & ISRs.** Includes the ADC Interrupt Service Routine (`ISR_HENDLER_ADC`), LCD Driver, and crucial **mathematical routines** for fixed-point division (`DIV16`) and multiplication/calculations required for Vavg and Offset conversion. |
+| **`bsp.s43`** | **Configuration.** Contains system initialization routines, including detailed **ADCconfig** for continuous sampling with DTC, and GPIO configurations. |
+| **`bsp.h`** | **Definitions.** Header file defining all register addresses, constants, and hardware pin abstractions. |
+| **`Preparation report LAB6.pdf`** | Official assignment document detailing the mathematical formulas for Vavg calculation and general ADC requirements. |
+| **`final_lab6.docx`** | Summary report detailing the implementation choices, including the use of 255 samples and the method for calculating the **Offset/DC Bias** (Max+Min)/2. |
+
+
 
 
 
