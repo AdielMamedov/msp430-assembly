@@ -1,0 +1,53 @@
+#include "bsp.h"
+
+
+    NAME Main
+    PUBLIC state, main
+    EXTERN confisys, STATE1, STATE2, STATE3,ClrLEDs,delay,Print2LEDs, PBs_handler, TurnOffLEDS,Print1LEDs 
+    
+;-------------------------------------------------------------------------------
+           ORG DataSegStart 
+           ;RSEG DATA
+;CONSTANT 
+state DW 0x00
+           
+;-------------------------------------------------------------------------------
+
+            RSEG CODE
+
+main mov.w  #StackTosStart,SP
+     CALL #confisys
+     ;CLR state
+      ;set to idle state at the beginning
+     
+;-----------------------FSM LOOP------------------------------------------------
+
+state0 cmp #0, state
+       jnz state1
+       push #0
+       call #TurnOffLEDS
+       bis.w #CPUOFF+GIE,SR ;falling asleep
+
+state1 cmp #0x01,state
+       jnz state2
+       call #STATE1
+       bis.b #0x0f, PBEnableIE
+       
+state2 cmp #0x02,state 
+       jnz state3
+       call #STATE2
+       bis.b #0x0f, PBEnableIE
+       
+state3 cmp #0x04, state
+       jnz state0
+       CALL #STATE3
+       jmp state0
+       
+
+ 
+
+
+
+       
+                       
+            END

@@ -1,0 +1,84 @@
+#include "bsp.h"
+
+    MODULE API
+    PUBLIC TurnOffLEDS, STATE1, STATE2, STATE3
+    EXTERN delay70f, delay30f, main, Print2LEDs, FrequncyOutput,Print1LEDs 
+    EXTERN delayhalf, state,ClrLEDs
+    
+    RSEG   CODE
+     
+    
+;--------------func-------------------------------------------------------------
+; LEDs Increment counting
+STATE1
+        mov #21,R6
+L11     call #Print1LEDs
+        CALL #delayhalf
+        inc R14
+        cmp.b R14,0xff
+        jnz loopdec
+        mov #0x01,R14
+loopdec DEC R6
+        JNZ L11
+        mov #0, state
+        call #ClrLEDs
+        RET
+        
+        
+;LEDs MOVING FROM LEFT TO RIGHT
+STATE2    mov #10, R13
+          jmp C1
+L22       mov.b #0x80,R15
+C1        call #Print2LEDs
+          call #delayhalf
+          clrc
+          RRC.B R15
+          dec R13
+          JZ F
+          tst R15
+          jz L22
+          JMP C1
+F         mov #0, state
+          call #ClrLEDs
+          RET
+      
+      
+STATE3 PUSH #0x40
+       mov #onehz, R12
+lo1    mov.b #0x80, PBArrPortOut
+       cmp #0x04, state
+       JNZ  a
+       call #delay70f
+       call #delay70f
+       mov.b #0x00, PBArrPortOut
+       call #delay30f
+       call #delay30f
+       DEC R12
+       JNZ lo1
+       mov #towhz, R11
+lo2    mov.b #0x80, PBArrPortOut
+       cmp #0x04, state
+       JNZ  a
+       call #delay70f
+       mov.b #0x00, PBArrPortOut
+       call #delay30f
+       DEC R11
+       jnz lo2
+       jmp STATE3
+a      RET
+        
+;turn off the leds
+TurnOffLEDS bic.b 0xff, LedsArrPort
+            RET
+        
+ 
+
+
+
+
+
+      ENDMOD    
+      END
+        
+
+

@@ -1,0 +1,52 @@
+#include "bsp.h"
+
+
+    NAME Main
+    PUBLIC main, state, state1, state2, lcd_row,lcd_col, STR,SSTR, STR_FREQ, STR_HZ
+    PUBLIC  flag
+    EXTERN confisys, STATE1, STATE2, lcd_init, lcd_clr
+
+;-------------------------------------------------------------------------------
+           ORG DataSegStart 
+           ;RSEG DATA
+
+state           DW      0
+lcd_col         DB      0
+lcd_row         DB      0
+STR             DW      "00:"
+SSTR            DW      "01:00"
+STR_FREQ        DW      "Measured FREQ:  "
+STR_HZ          DB      0x30,0x30,0x30,0x30,0x30,0x5b,0x68,0x7a,0x5d,0x00
+flag            DW      0
+
+;-------------------------------------------------------------------------------
+            RSEG CSTACK
+            RSEG CODE
+
+main mov.w  #StackTosStart,SP
+     CALL #confisys
+     call #lcd_init
+    
+     
+;---------------------- FSM_loop -------------------------------------
+
+state0       cmp     #0x00,state         ;check if state0           
+             jnz     state1
+             call    #lcd_clr
+             bis.w   #CPUOFF+GIE,SR      ;LMP0
+
+state1       cmp     #0x01,state         ;check if state1
+             jnz     state2 
+             EINT
+             call    #STATE1
+             RET
+
+state2       cmp     #0x02,state         ;check if state2
+             jnz     state0
+             EINT
+             CALL    #STATE2
+             ret
+             
+       
+                       
+            END

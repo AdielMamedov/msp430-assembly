@@ -1,0 +1,103 @@
+#include "bsp.h"
+
+    MODULE HAL
+    PUBLIC confisys, PBs_handler, ClrLEDs ,delay70f,delay30f,delayhalf,Print1LEDs, Print2LEDs
+    EXTERN GPIOCONFI,TIMERconfig, ADCconfig
+    EXTERN state
+  
+    RSEG CODE 
+    
+;--------------------------------------------------------------------
+;             System Configuration  
+;--------------------------------------------------------------------    
+  
+confisys call #GPIOCONFI
+         RET
+
+;--------------------------------------------------------------------
+;Print LEDs - function only with argument (without return value)  
+;--------------------------------------------------------------------
+              
+Print1LEDs    mov.b R14,LedsArrPort 
+              ret
+              
+              
+Print2LEDs    mov.b R15, LedsArrPort
+              ret
+              
+              
+;--------------------------------------------------------------------
+;Clear LEDs - void function (without arguments and return value)
+;--------------------------------------------------------------------
+ClrLEDs   clr.b LedsArrPort
+          ret
+          
+
+;----------------------------------------------------------------------- 
+;            PORT2 Interrupt Service Routine
+;-----------------------------------------------------------------------
+
+PBs_handler  call   #delay    
+             bit.b  #PB0,PBFlugPend   ;check if PB0 is pushed
+             jnz    PB0sel 
+             bit.b  #PB1,PBFlugPend   ;check if PB1 is pushed
+             jnz    PB1sel
+             bit.b  #PB2,PBFlugPend   ;check if PB2 is pushed
+             jnz    PB2sel
+             reti                ; interrupt hapened from another source
+
+PB0sel   mov    #1,state 
+         mov    #PB0,R12
+         bic.b  #GIE, 0(SP)
+         jmp    exitLPM0
+PB1sel   mov    #2,state
+         mov    #PB1,R12
+         bic.b  #GIE, 0(SP)
+         jmp    exitLPM0
+PB2sel   mov    #4,state 
+         mov    #PB2,R12
+         jmp    exitLPM0
+       
+         
+
+exitLPM0     bic    #CPUOFF ,0(SP)  ; Exit LMP0
+             bic.b  R12,PBFlugPend  
+             reti
+      
+
+;----------------------------------------------------------------------------------------------
+;            Polling based Delay function
+;----------------------------------------------------------------------------------------------                     
+delay70f      mov #delay70, R6
+L70           dec.w   R6     ;function body begin                 
+             jnz     L70       ;function body end
+             ret
+             
+delay30f      mov #delay30, R6
+L30          dec.w   R6     ;function body begin                 
+             jnz     L30       ;function body end
+             ret
+             
+delay        mov debounceVal, R6
+Lr           dec.w   R6     ;function body begin                 
+             jnz     Lr       ;function body end
+             ret             
+;----------------------------------------------------------------------------------------------
+;                   1/2 sec delay  
+;-------------------------------------------------------------------------------
+delayhalf   mov.w #0x5,R11
+L1          mov.w #32767,R10
+L2          dec R10
+            jnz L2
+            dec R11
+            jz OUTDELAY
+            jmp L1
+OUTDELAY    ret
+  
+
+
+;--------------------------------------------------------------------
+
+      ENDMOD
+      END
+

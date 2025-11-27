@@ -1,0 +1,77 @@
+#include "bsp.h"
+
+MODULE BSP
+PUBLIC GPIOCONFI, ADCconfig ,TIMEconfig, TIMEconfing2
+EXTERN main, PBs_handler, ISR_HENDEL0, ISR_HENDEL1,state
+
+;-------------------------------------------------------------------------------   
+
+RSEG CODE
+
+;*******************************************************************************
+; GPIO Configuration
+;*******************************************************************************
+GPIOCONFI:
+    mov.w   #WDTPW+WDTHOLD, &WDTCTL          ; Disable Watchdog Timer  
+                        
+           
+    
+    
+
+    ; Push-Buttons Setup
+    bic.b   #0xEF, PBArrPortsel              ; Set GPIO for buttons
+    bic.b   #0x0F, PBArrPortDir              ; Set buttons as input
+    bis.b   #0x07, PBEnableIE     ; Enable interrupts for buttons
+    bic.b   #0x17, PBFlugPend     ; Clear interrupt flags
+    bis.b   #0xE0, PBArrPortDir  ;ctl of LCD OUTPUT
+    ; LCD Setup
+    bic.b   #0xFF, LCDArrPortsel             ; Set GPIO for LCD
+    bis.b   #0xFF, LCDArrPortDir             ; Set LCD pins as output
+    clr.b   LCDArrPortOut                    ; Clear LCD output
+    
+    ;timer kinfug 2.4 pin
+    bis.b   #0x10, PBArrPortsel
+    bis.b   #0x10 ,PBArrPortDir
+    
+    bis.w     #TASSEL_2 + MC_0 + TACLR , &TA0CTL               ; SMCLK
+    mov.w #TASSEL_2 +ID_0+ MC_2+ TACLR,&TA1CTL ; SMCL, continuous mode up to 0xffff
+    mov.w #CM_1+CCIS_0+CAP+SCS,&TA1CCTL2 ; Capture on rising edges   
+    
+    ret 
+
+;*******************************************************************************
+; ADC Configuration
+;*******************************************************************************
+ADCconfig:
+    nop                                      ; Add ADC configuration here
+    ret
+    
+    ;------------------------------------
+TIMEconfig
+      bis.w   #CCIE,&TA0CCTL0 ; interrupt enable
+      mov.w   #0xFFFF,&TA0CCR0 ; 16 bit
+      mov.w   #TASSEL_2+MC_3+ID_3+TACLR,&TA0CTL ; SM , up/dowm , div8 , clr
+      ret
+TIMEconfing2
+xd    mov    #TASSEL_2 + MC_2 + ID_3+TACLR, &TA1CTL ; smclk + coutinues mode + /8 + clear timer 
+      mov    #CCIS_0 + CM_1 + CCIE + CCIFG+ CAP + SCS, &TA1CCTL2 ;outside clk + IE + 
+      CMP #2,state
+      jz xd
+      ret
+      
+;*******************************************************************************
+; Interrupt Vectors
+;*******************************************************************************
+COMMON  INTVEC
+
+ORG     RESET_VECTOR
+DW      main
+ORG     PORT2_VECTOR
+DW      PBs_handler                          ; Interrupt handler for buttons                                ; Reset vector points to main
+ORG     TIMER0_A0_VECTOR
+DW      ISR_HENDEL0
+ORG     TIMER1_A1_VECTOR
+DW      ISR_HENDEL1                         ; ISR for Timer A1
+
+ENDMOD
+END

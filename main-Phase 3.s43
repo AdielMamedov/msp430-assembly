@@ -1,0 +1,64 @@
+#include "bsp.h"
+
+
+    NAME Main
+    PUBLIC main, state, state1, state2, lcd_row,lcd_col, sample, sample_result,sample_tagim
+    PUBLIC state3, STR_SHAPE, STR_PWM, STR_TRIANGLE, STR_SIN,STR_AVG, STR_VOLT, epsilon_2, epsilon
+    EXTERN confisys, STATE1, STATE2,  STATE3, lcd_init, lcd_clr
+
+;-------------------------------------------------------------------------------
+           ORG DataSegStart 
+           ;RSEG DATA
+
+state           DW      0
+sample          DS16    100
+sample_result   DS16    50
+sample_tagim    DS16    25
+lcd_col         DB      0
+lcd_row         DB      0
+
+STR_SHAPE       DW      "SIGNAL SHAPE:"
+STR_PWM         DW      "SIGNAL SHAPE:   PWM"
+STR_TRIANGLE    DW      "SIGNAL SHAPE:   TRIANGLE"
+STR_SIN         DW      "SIGNAL SHAPE:   SINE"
+STR_AVG         DW      "Vavg:"
+STR_VOLT        DW      "[V]"
+epsilon         DW      8
+epsilon_2       DW      8
+
+;-------------------------------------------------------------------------------
+            RSEG CSTACK
+            RSEG CODE
+
+main mov.w  #StackTosStart,SP
+            CALL #confisys
+            call #lcd_init
+    
+     
+;----------------------------- FSM_loop ----------------------------------------
+
+state0       cmp     #0x00,state         ;check if state0           
+             jnz     state1
+             call    #lcd_clr
+             bis.w   #CPUOFF+GIE,SR      ;LMP0
+
+state1       cmp     #0x01,state         ;check if state1
+             jnz     state2 
+             EINT
+             call    #STATE1
+             RET
+
+state2       cmp     #0x02,state         ;check if state2
+             jnz     state3
+             EINT
+             CALL    #STATE2
+             ret
+
+state3       cmp #0x04,state
+             jnz state0
+             EINT
+             call   #STATE3
+             ret
+       
+                       
+            END

@@ -1,0 +1,65 @@
+#include "bsp.h"
+
+MODULE BSP
+PUBLIC GPIOCONFI, ADCconfig ,TIMEconfig
+EXTERN main, PBs_handler, ISR_HENDEL_TIMER0, ISR_HENDLER_ADC, state, sample
+
+;-------------------------------------------------------------------------------   
+
+RSEG CODE
+
+;*******************************************************************************
+; GPIO Configuration
+;*******************************************************************************
+GPIOCONFI:
+    mov.w   #WDTPW+WDTHOLD, &WDTCTL          ; Disable Watchdog Timer  
+                        
+
+    ;Push-Buttons Setup
+    bic.b   #0xff, PBArrPortsel              ; Set GPIO for buttons
+    bic.b   #0x0f, PBArrPortDir              ; Set buttons as input
+    bis.b   #0x07, PBEnableIE     ; Enable interrupts for buttons
+    bic.b   #0x07, PBFlugPend     ; Clear interrupt flags
+    bis.b   #0xE0, PBArrPortDir
+
+    ;LCD Setup
+    bic.b   #0xFF, LCDArrPortsel             ; Set GPIO for LCD
+    bis.b   #0xff, LCDArrPortDir             ; Set LCD pins as output
+    clr.b   LCDArrPortOut                    ; Clear LCD output
+   
+    ret 
+
+;*******************************************************************************
+; ADC Configuration
+;*******************************************************************************
+ADCconfig:
+     MOV.W     #MSC+ADC10ON+ADC10IE+ADC10SHT_3,&ADC10CTL0  ;MULY SAMPLE + ON ADC10 + ADC10 IE + CYRCLE 64 FRE
+     MOV.W     #CONSEQ_2+INCH_3+ADC10SSEL_3+ADC10DIV_1,&ADC10CTL1 ;work state: countinues + A3 channel + SMCLK + divide by one
+     MOV.B     #100,&ADC10DTC1 ;AMOUNT OF SAMPLES
+     MOV.W     #sample,&ADC10SA   ;STORAGE OF THE SAMPLES
+     BIS.W     #ENC+ADC10SC,&ADC10CTL0    ;ENABLE CONVERSION + START COVE
+     ret
+    
+    ;------------------------------------
+TIMEconfig
+      mov.w   #CCIE,&CCTL0            ; INTERAPT ENABLE ->Timer A Capture Control 0
+      mov.w   #0xffff,&CCR0           ; conter to ccr0
+      mov.w   #TASSEL_2+MC_3+ID_3 + TACLR, &TACTL  ; SMCLK- Up/Down -/8 -> Timer A Control
+      ret
+         
+;*******************************************************************************
+; Interrupt Vectors
+;*******************************************************************************
+COMMON  INTVEC
+
+ORG     RESET_VECTOR
+DW      main
+ORG     PORT1_VECTOR
+DW      PBs_handler                          ; Interrupt handler for buttons    
+ORG     TIMER0_A0_VECTOR
+DW      ISR_HENDEL_TIMER0
+ORG     ADC10_VECTOR
+DW      ISR_HENDLER_ADC
+
+ENDMOD
+END

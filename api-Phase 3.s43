@@ -1,0 +1,99 @@
+#include "bsp.h"
+
+    MODULE API
+    PUBLIC print_str, STATE1, STATE2,print_ch,STATE3
+    EXTERN main, delay, lcd_trigger, lcd_cmd, delayLCD, TIMEconfig, STR_FREQ, clr_timer0
+    EXTERN delayhalf, state, lcd_trigger, lcd_row,lcd_col,lcd_clr,SSTR, TIMEconfing2
+    
+    RSEG   CODE
+     
+    
+;------------------------------func---------------------------------------------
+;print to LCD
+print_str pop	   R12					; R12=return address
+          pop	   R13					; str pointer
+loop	  mov.b    @R13+,R14
+          cmp      #0x00,R14
+          jz	   exit1					; if we get '\0'
+          bis.b    #RSctrl, &P1OUT                      ; RS = '1'
+          push     #del5ms
+          call     #delay
+          mov.b    R14, &P2OUT          
+          call     #lcd_trigger
+          inc.b    lcd_col
+          cmp.b    #16, lcd_col
+          jlo      loop
+          xor.b    #0x01, lcd_row                       ; lcd_row=0 (first row),lcd_row=1 (second row)
+          mov.b    #0x00, lcd_col
+          tst.b    lcd_row
+          jnz      set_2nd 
+set_1st   push     #0x02                                ; set the lcd pointer to (lcd_row,lcd_col)=(0,0)
+          call     #lcd_cmd         
+          jmp	   loop
+set_2nd   push     #0xC0                                ; set the lcd pointer to (lcd_row,lcd_col)=(1,0)
+          call     #lcd_cmd         
+          jmp	   loop
+exit1     push.w   R12
+          ret
+          
+;-----------------------print char----------------------------------------------
+
+print_ch  pop	   R12					; R12=return address
+          pop	   R13					; char         
+          cmp.b    #16, lcd_col
+          jlo      print
+          xor.b    #0x01, lcd_row                       ; lcd_row=0 (first row),lcd_row=1 (second row)
+          mov.b    #0x00, lcd_col
+          tst.b    lcd_row
+          jnz      set1_2nd 
+set1_1st  push     #0x02                                ; set the lcd pointer to (lcd_row,lcd_col)=(0,0)
+          call     #lcd_cmd         
+          jmp	   print
+set1_2nd  push     #0xC0                                ; set the lcd pointer to (lcd_row,lcd_col)=(1,0)
+          call     #lcd_cmd                             
+print     bis.b    #RSctrl, &P1OUT                      ; RS = '1'
+          push     #del5ms
+          call     #delay
+          mov.b    R13, &P2OUT
+          call     #lcd_trigger         
+          inc.b    lcd_col                                               
+          push.w   R12
+          ret
+
+
+         
+      
+;-------------------------MANAGE STATES----------------------------- 
+STATE1 
+LOOP1  call #TIMEconfig
+       bis.w   #CPUOFF+GIE,SR  
+       cmp #1, state
+       jnz FFF
+       JMP LOOP1
+FFF    MOV #0, state
+       RET
+       
+;----------------------------state 2--------------------------------------------       
+
+STATE2 call #TIMEconfig
+       bis.w   #CPUOFF+GIE,SR  
+       MOV #0, state
+       RET
+;---------------------------------------state3----------------------------------     
+STATE3 
+       CMP #4, state
+       
+       JMP STATE3
+ENDI   MOV #0, state
+       RET
+
+
+
+
+
+
+      ENDMOD    
+      END
+        
+
+

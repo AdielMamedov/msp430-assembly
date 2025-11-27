@@ -1,0 +1,64 @@
+#include "bsp.h"
+
+    MODULE BSP
+    PUBLIC GPIOCONFI, TIMERconfig, ADCconfig
+    EXTERN main, PBs_handler
+    
+;-------------------------------------------------------------------------------   
+    
+    RSEG CODE
+    
+    
+GPIOCONFI mov.w #WDTPW+WDTHOLD, &WDTCTL
+          ; PushButtons Setup
+          mov #0x0080, R15
+          mov #0x0000, R14
+          bic.b #0xff, PBArrPortsel ;PBcapabilty
+          bic.b #0x0f, PBArrPortDir
+          bis.b #0x80, PBArrPortDir
+          bis.b #0x03, PBTypeOfTriger ;pull-up
+          bic.b #0x0c, PBTypeOfTriger ;pull-down
+          bis.b #0x0f, PBEnableIE
+          bic.b #0x0f, PBFlugPend
+          
+          
+          
+          ; LEDs Setup
+          bic.b #0xFF,LedsArrSel ; GPIO capability
+          bis.b #0xFF,LedsArrDir ; output dir
+          clr.b LedsArrPort    ; clear LEDs
+          
+          ret
+;------------------------------------------------------------------------------------- 
+;            Timers congiguration 
+;-------------------------------------------------------------------------------------
+TIMERconfig 
+            nop   ;write here timers congiguration code
+
+            ret
+;-------------------------------------------------------------------------------------- 
+;            ADC congiguration 
+;--------------------------------------------------------------------------------------
+ADCconfig
+            nop ; write here ADC congiguration code
+            
+            ret
+            
+;---------------------------------------------------------------------------------------                  
+             COMMON  INTVEC   ; Interrupt Vectors-Begins a common segment name of INTVEC 
+;--------------------------------------------------------------------------------------
+             ORG     PORT2_VECTOR       ;PORT2 Interrupt Vector
+             DW      PBs_handler        ; interrupt handler = ISR
+             ORG     RESET_VECTOR       ; MSP430 RESET Vectori
+             DW      main  
+            
+             ENDMOD
+             END
+
+          
+
+          
+          
+          
+          
+          

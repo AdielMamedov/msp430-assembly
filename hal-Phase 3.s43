@@ -1,0 +1,305 @@
+#include "bsp.h"
+
+    MODULE HAL
+    PUBLIC confisys, PBs_handler, lcd_clr, lcd_trigger, ISR_HENDLER_ADC, ISR_HENDEL_TIMER0
+    PUBLIC lcd_cmd, delay,lcd_init, delayLCD, lcd_clr, DIV16
+    PUBLIC RET_HASCII
+ 
+    EXTERN GPIOCONFI,TIMEconfig, ADCconfig, lcd_row,lcd_col,sample_tagim
+    EXTERN state, print_str,print_ch, sampleת sample_result, epsilon_2
+    EXTERN STR_AVG, STR_SHAPE, STR_PWM, STR_TRIANGLE, STR_SIN,STR_VOLT, epsilon
+  
+    RSEG CODE 
+    
+;==============================================================================
+;                          System Configuration  
+;==============================================================================  
+  
+confisys call #GPIOCONFI
+         RET
+
+;==============================================================================
+;                          LCD DRIVER FUNCTIOUNS
+;==============================================================================
+
+;-----------------------------clear LCD----------------------------------------
+lcd_clr   PUSH #0x01
+          CALL #lcd_cmd
+          mov.b    #0x00, lcd_row               ; set (lcd_row,lcd_col)=(0,0)
+          mov.b    #0x00, lcd_col               
+          ret
+          
+;-----LCD TRIGGER (ACTIVE WHEN  pin E voltage changes from ‘1’ to ‘0’-----------
+
+          
+lcd_trigger   bis.b     #ENctrl, &P1OUT		; ENctrl=1      
+              nop
+              nop
+              bic.b     #ENctrl, &P1OUT		; ENctrl=0
+              ret
+
+;----------------------LCD cmd--------------------------------------------------
+lcd_cmd   pop      R10					; R10=return address
+          pop      R11                                  ; R11=command code
+          bic.b    #RSctrl, &P1OUT                      ; RS = '0'
+          push     #del5ms
+          call     #delay
+          mov.b    R11, &P2OUT
+          call     #lcd_trigger
+          push.w   R10
+          ret  
+          
+          
+;-----------------------lcd init-----------------------------------------------
+lcd_init  pop R4
+          bic.b      #RWctrl + RSctrl + ENctrl, &P1OUT	; EN='0', RS='0', RW='0'
+          push       #del15ms
+          call       #delay
+          mov.b      #0x3F, &P2OUT
+          call       #lcd_trigger
+          push       #del5ms
+          call       #delay
+          mov.b      #0x3F, &P2OUT
+          call       #lcd_trigger
+          push 	     #del200us
+          call       #delay
+          mov.b      #0x3F, &P2OUT
+          call       #lcd_trigger
+          push       #del5ms
+          call       #delay
+          mov.b      #0x3c, &P2OUT
+          call       #lcd_trigger
+          push       #del5ms
+          call       #delay
+          mov.b      #0x0F, &P2OUT
+          call       #lcd_trigger
+          push       #del5ms
+          call       #delay
+          mov.b      #0x01, &P2OUT
+          call       #lcd_trigger
+          push       #del5ms
+          call       #delay
+          mov.b      #0x06, &P2OUT
+          call       #lcd_trigger
+          push       #del5ms
+          call       #delay
+          mov.b      #0x80, &P2OUT
+          call       #lcd_trigger
+          push       #del5ms
+          call       #delay
+          mov.b      #0x02, &P2OUT
+          call       #lcd_trigger
+          PUSH R4
+          ret                 
+
+;----------------------------------------------------------------------- 
+;            PORT1 Interrupt Service Routine
+;-----------------------------------------------------------------------
+
+PBs_handler  push #debounceVal
+             call   #delay    
+             bit.b  #PB0,PBFlugPend   ;check if PB0 is pushed
+             jnz    PB0sel 
+             bit.b  #PB1,PBFlugPend   ;check if PB1 is pushed
+             jnz    PB1sel
+             bit.b  #PB2,PBFlugPend   ;check if PB1 is pushed
+             jnz    PB2sel
+             reti                ; interrupt hapened from another source
+
+PB0sel   mov    #1,state 
+         mov    #PB0,R12
+         bic.b  #GIE, 0(SP)
+         jmp    exitLPM0
+PB1sel   mov    #2,state
+         mov    #PB1,R12
+         bic.b  #GIE, 0(SP)
+         jmp    exitLPM0        
+PB2sel   mov    #8,state
+         mov    #PB2,R12
+         bic.b  #GIE,0(SP)
+         jmp    exitLPM0
+         
+
+exitLPM0     bic    #CPUOFF ,0(SP)  ; Exit LMP0
+             bic.b  R12,PBFlugPend  
+             reti
+      
+
+;----------------------------------------------------------------------------------------------
+;           Delay function (LCD, debounce)
+;----------------------------------------------------------------------------------------------                     
+delay        pop R9
+             pop R6
+Lr           dec.w   R6     ;function body begin                 
+             jnz     Lr       ;function body end
+             PUSH R9
+             ret
+                    
+
+delayLCD  pop	   R9			; R9=return address
+          pop      &TA0CCR0
+          bis      #MC_1 + TAIE +  TACLR + ID_0, &TA0CTL
+          bis      #LPM0+GIE, SR
+          CLR      &TAIE
+          push.w   R9      
+          ret
+;==============================================================================
+;                          driveres func
+;==============================================================================
+
+
+;-----------------------deiveres for timers and ADC-----------------------------
+ISR_HENDEL_TIMER0
+            call #ADCconfig         ; Exit LPMO, interrupts enabled
+            bis.w  #CPUOFF+GIE,SR  
+            RETI
+            
+ISR_HENDLER_ADC             
+            BIC.W #ADC10IFG, &ADC10CTL0
+            bic  #CPUOFF ,0(SP)
+            call #lcd_clr
+            cmp  #1,state
+            jnz st_2
+            call #id_signal
+            reti
+            
+st_2        call #avg
+            RETI
+            
+;-------------------------identify the signal-----------------------------------
+id_signal PUSH #sample_result
+          PUSH #1
+          push #sample
+          push #50
+          call #SUB_BETWEEN       ;REG TO HOLD THE NUMBER OF MACHING
+          CMP #20, R10
+          JL CHECK2
+          PUSH #STR_PWM
+          CALL #print_str
+          JMP FIN
+CHECK2    PUSH #sample_tagim
+          push #0
+          push #sample_result
+          push #25
+          call #SUB_BETWEEN       ;REG TO HOLD THE NUMBER OF MACHING
+          CMP #10, R10
+          JL CHECK3
+          PUSH #STR_TRIANGLE
+          CALL #print_str
+          JMP FIN
+CHECK3    PUSH #STR_SIN
+          CALL #print_str          
+FIN       ret
+
+;----------------------------SERVICE FOR ST 1-----------------------------------
+
+SUB_BETWEEN 
+        POP R15  ;ADRESS RET
+        POP R14  ;number of runs
+        POP R13  ;POINTER TO START ARRAY
+        POP R12  ;CHECKING TRG OR PWM?
+        pop R6
+        ;MOV #sample_result, R6
+        CMP #1, R12
+        JNZ OTHER
+        MOV epsilon, R11  ;EPSILON 
+        JMP CONT
+OTHER   MOV epsilon_2, R11
+CONT    CLR R10        ;HOLD THE RES (FOR BOTH VALUE, CHECKING IF the DIFFRENCE IS LOWER THEN EPSILON
+LOOP12                   ;LOOP TO RUN AND UPDATE OF SAMPLE2 ARRAY
+        MOV @R13+, R9      
+        MOV @R13+, R8
+        SUB R9,R8   ;SUB R8-R9, R8=RES
+        PUSH R8
+        CALL #ABS_NUM
+        POP R8
+        CMP R8, R11
+        jn label1
+        inc R10
+label1  CMP #1,R12
+        JNZ ENDI
+        MOV R8, 0(R6)
+        incd R6
+ENDI    DEC R14
+        JZ HERE
+        JMP LOOP12
+HERE    
+        PUSH R15
+        RET
+        
+        
+ABS_NUM
+        pop R4
+        POP R5
+        CMP #0, R5
+        JGE END_ABS
+        XOR #0xffff, R5
+        ADD #1, R5
+END_ABS PUSH R5
+        PUSH R4
+         ret
+          
+;=============================state 2 fun (avg)=================================
+avg   
+      ret
+;-----------------------------RET_HASCII----------------------------------------
+RET_HASCII  POP R4            
+            POP R7            
+            MOV #STR_AVG, R9  
+            MOV #10, R5           
+L1                
+            CMP R5, R7
+            JGE FINITO
+            PUSH R7            
+            PUSH R5           
+            CALL #DIV16        
+            POP R13
+            POP R7           
+            ADD #48, R13        
+            PUSH R13             
+            JMP L1             
+FINITO      ADD #48, R7
+            PUSH R7; הוספת 48 ל-R7 (ממירה לתו ASCII)
+            PUSH R4            ; שמירה של R4 על הסטאק
+            RET                ; חזרה
+        
+
+
+;==============================================================================
+;                        multy and divider
+;==============================================================================
+
+;-----------------------------------divider------------------------------------
+
+DIV16	  	pop.w R15			; R15 = the caller return address
+		pop.w R14			; R14 = y = Divisor
+		pop.w R13			; R13 = x = Dividend	                 
+                mov     #17,R10			; R10=DIV16_STEP_COUNTER=16+1
+                clr     R12                	; initialize the Quotient register
+                clr     R11		   	; initialize the shift-register {|R11|R13|} Upper Word                 
+DIVL3           rla     R12
+DIVL1           dec     R10
+                jz      DIVL2
+                rla     R13
+                rlc     R11
+                cmp     R14,R11
+                jlo     DIVL3
+                sub     R14,R11
+                setc
+                rlc     R12
+                jmp     DIVL1               
+DIVL2           push.w   R12		   	; push the Quotient into stack
+                push.w   R11		   	; push the Remainder into stack
+		push.w   R15			; push back the caller return address
+                ret		
+                
+;--------------------------------multi------------------------------------------
+
+;============================================================================== 
+;                    END
+;==============================================================================
+ 
+
+      ENDMOD
+      END
+
