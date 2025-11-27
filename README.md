@@ -7,7 +7,7 @@ This project develops a complex embedded system on the **MSP430G2553**, written 
 2. **Timers & Frequency:** Countdown Timer (Timer\_A0) and Frequency Counter (Timer\_A1 Capture).
 3. **ADC & Signal Analysis:** Continuous sampling (ADC10/DTC), $V_{avg}$ and Offset calculation, and signal classification.
 
-
+---
 
 #  MSP430 Assembly Project - Assignment 1: FSM, Interrupts, and LPM
 
